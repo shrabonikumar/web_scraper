@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table Scraper with robots.txt check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Public+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eaf0f1;--surface:#fff;--ink:#12302c;--muted:#56706b;--line:#c9d6d6;--ok:#1e7b5a;--no:#b3364a;--warnbg:#f6e7c1;--warn:#6b4b00;
+--display:"Bricolage Grotesque",Georgia,serif;--body:"Public Sans",system-ui,sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#10201f;--surface:#172c2a;--ink:#e3efec;--muted:#93aea9;--line:#2c4643;--ok:#4fc79a;--no:#f07a8b;--warnbg:#3b3010;--warn:#f0d48a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.55 var(--body)}
+main{max-width:60rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+h1{font:700 clamp(2rem,5vw,3rem)/1.05 var(--display);margin:0 0 .5rem;letter-spacing:-.02em}
+h2{font:700 1.35rem/1.2 var(--display);margin:0 0 .75rem}
+.lead{color:var(--muted);max-width:42rem;margin:0 0 2rem}
+section{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:1.5rem;margin-bottom:1.25rem}
+form,.row{display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end}
+label{display:flex;flex-direction:column;gap:.25rem;font-weight:600;font-size:.9rem;flex:1 1 14rem}
+label.small{flex:0 0 9rem}
+input,select{font:inherit;padding:.6rem .7rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+button{font:600 1rem var(--body);padding:.65rem 1.2rem;border:0;border-radius:4px;background:var(--ink);color:var(--surface);cursor:pointer}
+button.ghost{background:none;color:var(--ink);border:1px solid var(--ink);padding:.4rem .8rem;font-size:.85rem}
+button:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+.hidden{display:none}
+.error{color:var(--no);font-weight:600;margin:.75rem 0 0}
+.verdict{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap}
+.pct{font:700 clamp(3.5rem,12vw,6rem)/1 var(--display);letter-spacing:-.04em}
+.blocked .pct,.blocked .vtext{color:var(--no)}
+.full .pct,.full .vtext,.partial .pct,.partial .vtext{color:var(--ok)}
+.vtext{font:700 1.4rem var(--display)}
+.strip{display:flex;flex-wrap:wrap;gap:2px;margin:1rem 0}
+.strip i{width:10px;height:10px;border-radius:1px;background:var(--ok)}
+.strip i.x{background:var(--no)}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem;margin:1rem 0 0;font-size:.92rem}
+dt{color:var(--muted)} dd{margin:0}
+.warn{background:var(--warnbg);color:var(--warn);padding:.7rem .9rem;border-radius:4px;margin:1rem 0 0}
+.blk{font-size:.85rem;color:var(--muted);word-break:break-all;margin:.75rem 0 0;padding-left:1.1rem}
+.opts{border:0;padding:0;margin:0;display:flex;gap:1.25rem;flex-wrap:wrap;flex:1 1 100%}
+.opts legend{font-weight:600;font-size:.9rem;padding:0;margin-bottom:.25rem}
+.opts label{flex-direction:row;align-items:center;gap:.4rem;font-weight:400;flex:0 0 auto}
+.text{padding:.75rem;margin:.4rem 0 0;font:.85rem/1.5 var(--body);white-space:pre-wrap}
+.imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(8rem,1fr));gap:.5rem;max-height:24rem;overflow:auto}
+.imgs img{width:100%;height:8rem;object-fit:cover;border:1px solid var(--line);border-radius:4px;background:var(--bg)}
+.blockedimg{display:flex;align-items:center;justify-content:center;height:8rem;border:1px dashed var(--no);color:var(--no);font-size:.78rem;text-align:center;padding:.4rem;border-radius:4px}
+.tbl{margin-top:1.25rem}
+.tbl h3{font:600 1rem var(--body);margin:0}
+.head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.scroll{overflow-x:auto;max-height:22rem;border:1px solid var(--line);border-radius:4px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:.4rem .6rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface)}
+@media(prefers-reduced-motion:no-preference){.pct{animation:pop .5s ease-out}@keyframes pop{from{opacity:0;transform:translateY(8px)}}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Check first, then scrape</h1>
+  <p class="lead">Enter a website. The tool reads its robots.txt, tests a sample of its pages, and tells you how much of the site you may scrape. Then you can pull tables and structured data from an allowed page.</p>
+
+  <section>
+    <h2>1. Check permission</h2>
+    <form id="checkForm">
+      <label>Website URL<input id="url" required placeholder="https://example.com"></label>
+      <label class="small">Pages to test
+        <select id="sample"><option>25</option><option>50</option><option selected>100</option><option>200</option><option>500</option></select>
+      </label>
+      <button id="checkBtn">Check robots.txt</button>
+    </form>
+    <p id="checkErr" class="error hidden"></p>
+    <div id="result" class="hidden"></div>
+  </section>
+
+  <section id="scrapeBox" class="hidden">
+    <h2>2. Scrape the page</h2>
+    <form id="scrapeForm">
+      <label>Page to scrape<input id="target" required></label>
+      <fieldset class="opts"><legend>What to extract</legend>
+        <label><input type="checkbox" value="tables" checked> Tables and structured data</label>
+        <label><input type="checkbox" value="text"> All text</label>
+        <label><input type="checkbox" value="images"> All images</label>
+      </fieldset>
+      <button id="scrapeBtn">Scrape page</button>
+    </form>
+    <p id="scrapeErr" class="error hidden"></p>
+    <div id="out"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const h = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "class" ? e.className = v : e.setAttribute(k, v);
+  e.append(...kids);
+  return e;
+};
+async function post(path, body) {
+  const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "Request failed.");
+  return j;
+}
+function busy(btn, on, label) { btn.disabled = on; if (label) btn.textContent = label; }
+function showErr(el, msg) { el.textContent = msg || ""; el.classList.toggle("hidden", !msg); }
+function save(name, text, type) {
+  const a = h("a", {href: URL.createObjectURL(new Blob(["\ufeff" + text], {type})), download: name});
+  a.click(); URL.revokeObjectURL(a.href);
+}
+const toCsv = (head, rows) => [head, ...rows].map(r => r.map(c => '"' + String(c ?? "").replace(/"/g, '""') + '"').join(",")).join("\r\n");
+
+const VERDICT = {full: "Scraping is allowed", partial: "Scraping is partly allowed", blocked: "Scraping is not allowed"};
+
+$("#checkForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  showErr($("#checkErr")); $("#result").classList.add("hidden"); $("#scrapeBox").classList.add("hidden");
+  busy($("#checkBtn"), true, "Checking…");
+  try {
+    const d = await post("/api/check", {url: $("#url").value, sample: $("#sample").value});
+    renderCheck(d);
+  } catch (err) { showErr($("#checkErr"), err.message); }
+  busy($("#checkBtn"), false, "Check robots.txt");
+});
+
+function renderCheck(d) {
+  const box = $("#result"); box.replaceChildren();
+  box.append(
+    h("div", {class: "verdict " + d.verdict}, h("span", {class: "pct"}, d.percent + "%"), h("span", {class: "vtext"}, VERDICT[d.verdict])),
+    h("p", {}, `${d.allowed} of ${d.sampled} sampled pages can be fetched. Each square below is one page (hover for its URL).`),
+    h("div", {class: "strip"}, ...d.results.map(([u, ok]) => h("i", {class: ok ? "" : "x", title: (ok ? "Allowed: " : "Blocked: ") + u})))
+  );
+  if (d.warning) box.append(h("div", {class: "warn"}, d.warning));
+  box.append(h("dl", {},
+    h("dt", {}, "robots.txt"), h("dd", {}, d.robots_status),
+    h("dt", {}, "Pages sampled from"), h("dd", {}, `${d.source} (${d.urls_found} URLs found)`),
+    h("dt", {}, "Crawl delay"), h("dd", {}, d.crawl_delay ? d.crawl_delay + " seconds" : "not specified"),
+    h("dt", {}, "Your URL"), h("dd", {}, d.target_allowed ? "Allowed" : "Blocked")
+  ));
+  const blocked = d.results.filter(r => !r[1]).slice(0, 6);
+  if (blocked.length) box.append(h("p", {class: "blk"}, "Examples of blocked pages:"), h("ul", {class: "blk"}, ...blocked.map(r => h("li", {}, r[0]))));
+  box.classList.remove("hidden");
+  $("#target").value = d.target;
+  $("#scrapeBox").classList.toggle("hidden", d.verdict === "blocked" && !d.target_allowed);
+}
+
+$("#scrapeForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  showErr($("#scrapeErr")); $("#out").replaceChildren();
+  const extract = [...document.querySelectorAll(".opts input:checked")].map(x => x.value);
+  if (!extract.length) return showErr($("#scrapeErr"), "Choose at least one thing to extract.");
+  busy($("#scrapeBtn"), true, "Scraping…");
+  try { renderScrape(await post("/api/scrape", {url: $("#target").value, extract})); }
+  catch (err) { showErr($("#scrapeErr"), err.message); }
+  busy($("#scrapeBtn"), false, "Scrape page");
+});
+
+function summary(d) {
+  const p = [];
+  if (d.extract.includes("tables")) p.push(`${d.tables.length} table(s)`, `${d.structured_data.length} structured data block(s)`);
+  if (d.extract.includes("text")) p.push(`${d.text.length.toLocaleString()} characters of text`);
+  if (d.extract.includes("images")) p.push(`${d.images.length} image(s)`);
+  return "Found " + p.join(", ") + ".";
+}
+
+function renderExtras(d) {
+  const out = $("#out");
+  if (d.extract.includes("text")) {
+    const btn = h("button", {class: "ghost", type: "button"}, "Download TXT");
+    btn.onclick = () => save("page-text.txt", d.text, "text/plain");
+    out.append(h("div", {class: "tbl"}, h("div", {class: "head"}, h("h3", {}, "Page text"), btn),
+      h("pre", {class: "scroll text"}, d.text || "No text found on this page.")));
+  }
+  if (d.extract.includes("images")) {
+    const btn = h("button", {class: "ghost", type: "button"}, "Download CSV");
+    btn.onclick = () => save("images.csv", toCsv(["url", "alt", "allowed_by_robots"], d.images.map(i => [i.url, i.alt, i.allowed])), "text/csv");
+    const ok = d.images.filter(i => i.allowed).length;
+    const grid = d.images.length
+      ? h("div", {class: "imgs"}, ...d.images.map(i => i.allowed
+          ? h("a", {href: i.url, target: "_blank", rel: "noopener"}, h("img", {src: i.url, alt: i.alt, loading: "lazy", referrerpolicy: "no-referrer"}))
+          : h("span", {class: "blockedimg", title: i.url}, "Blocked by robots.txt")))
+      : h("p", {}, "No images found on this page.");
+    out.append(h("div", {class: "tbl"}, h("div", {class: "head"}, h("h3", {}, `Images (${ok} allowed of ${d.images.length})`), btn), grid));
+  }
+}
+
+function renderScrape(d) {
+  const out = $("#out");
+  const sd = d.structured_data.length;
+  out.append(h("div", {class: "row", style: "margin-top:1rem;justify-content:space-between;align-items:center"},
+    h("p", {}, summary(d)),
+    h("button", {class: "ghost", type: "button"}, "Download all as JSON")));
+  out.lastChild.querySelector("button").onclick = () => save("scrape.json", JSON.stringify(d, null, 2), "application/json");
+  d.tables.forEach((t, i) => {
+    const title = t.caption || `Table ${i + 1}`;
+    const btn = h("button", {class: "ghost", type: "button"}, "Download CSV");
+    btn.onclick = () => save(`table-${i + 1}.csv`, toCsv(t.headers, t.rows), "text/csv");
+    const table = h("table", {}, h("thead", {}, h("tr", {}, ...t.headers.map(x => h("th", {}, x)))),
+      h("tbody", {}, ...t.rows.map(r => h("tr", {}, ...r.map(c => h("td", {}, c))))));
+    out.append(h("div", {class: "tbl"}, h("div", {class: "head"}, h("h3", {}, `${title} (${t.rows.length} rows)`), btn), h("div", {class: "scroll"}, table)));
+  });
+  renderExtras(d);
+  if (sd) out.append(h("div", {class: "tbl"}, h("h3", {}, "Structured data (JSON-LD)"),
+    h("pre", {class: "scroll", style: "padding:.75rem;margin:.4rem 0 0;font-size:.82rem"}, JSON.stringify(d.structured_data, null, 2))));
+}
+</script>
+</body>
+</html>
