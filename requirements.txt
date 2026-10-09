@@ -5,3 +5,4 @@ protego
 defusedxml
 torch
 tqdm
+os
